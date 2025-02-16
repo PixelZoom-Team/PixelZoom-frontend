@@ -3,11 +3,48 @@ import styled from 'styled-components';
 
 const Main = () => {
     const [imageSrc, setImageSrc] = useState(null);
-    const [processedImage, setProcessedImage] = useState(null);
     const [imageSize, setImageSize] = useState({ width: 300, height: 300 });
     const [scale, setScale] = useState(1);
+    const [serverResponse, setServerResponse] = useState(null);
+    const [minChunkSize, setMinChunkSize] = useState(1);
+    const [isFailed, setIsFailed] = useState(false);
 
-    const handleDownload = () => {
+    const handleUploadNewImage = () => {
+        setImageSrc(null);
+        setImageSize({ width: 300, height: 300 });
+        setScale(1);
+        setServerResponse(null);
+        setMinChunkSize(1);
+        setIsFailed(false);
+    };
+
+    const handleImageUpload = async (file) => {
+        const formData = new FormData();
+        formData.append('image', file);
+
+        try {
+            const response = await fetch('http://sadang.org:8000/api/analyze-image', {
+                method: 'POST',
+                body: formData,
+            });
+
+            const result = await response.json();
+            console.log('Server Response:', result);
+            setServerResponse(result);
+
+            if (result.status?.type === 'failed') {
+                setIsFailed(true);
+                setMinChunkSize(1);
+            } else if (result.data?.minchunksize) {
+                setMinChunkSize(Number(result.data.minchunksize.width));
+                setIsFailed(false);
+            }
+        } catch (error) {
+            console.error('Error uploading image:', error);
+        }
+    };
+
+    const handleDownloadImage = () => {
         if (!imageSrc) return;
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
@@ -20,18 +57,11 @@ const Main = () => {
             ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
             const link = document.createElement('a');
             link.href = canvas.toDataURL('image/png');
-            link.download = 'scaled_image.png';
+            link.download = 'processed_image.png';
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
         };
-    };
-
-    const handleUploadNewImage = () => {
-        setImageSrc(null);
-        setProcessedImage(null);
-        setImageSize({ width: 300, height: 300 });
-        setScale(1);
     };
 
     return (
@@ -39,9 +69,7 @@ const Main = () => {
             <UploadBox
                 onClick={() => document.getElementById('fileInput').click()}
                 imageSrc={imageSrc}
-                imageSize={imageSize}
                 hasImage={!!imageSrc}
-                scale={scale}
             >
                 <Input
                     type="file"
@@ -57,6 +85,7 @@ const Main = () => {
                                 img.onload = () => {
                                     setImageSize({ width: img.width, height: img.height });
                                     setImageSrc(event.target.result);
+                                    handleImageUpload(file);
                                 };
                             };
                             reader.readAsDataURL(file);
@@ -65,21 +94,39 @@ const Main = () => {
                 />
                 {!imageSrc && <UploadText>Click to Upload or Drag and Drop</UploadText>}
             </UploadBox>
+
+            {serverResponse && (
+                <MinChunkInfo>
+                    {isFailed ? <p>⚠️ Minchunk 탐지 실패</p> : <p>✅ Minchunk: {minChunkSize}</p>}
+                </MinChunkInfo>
+            )}
+
             {imageSrc && (
                 <>
                     <ScaleSlider>
-                        <label>Scale: {scale}x</label>
+                        <label>Scale: {scale.toFixed(2)}x</label>
                         <input
                             type="range"
-                            min="0.1"
-                            max="10"
-                            step="0.1"
+                            min={isFailed ? 1 : 1 / minChunkSize}
+                            max={3}
+                            step={isFailed ? 1 : 1 / minChunkSize}
                             value={scale}
                             onChange={(e) => setScale(Number(e.target.value))}
                         />
+                        <ResolutionText>
+                            Target Resolution: {Math.round(imageSize.width * scale)} x{' '}
+                            {Math.round(imageSize.height * scale)}
+                        </ResolutionText>
                     </ScaleSlider>
-                    <DownloadButton onClick={handleUploadNewImage}>Upload New Image</DownloadButton>
-                    <DownloadButton onClick={handleDownload}>Download Image</DownloadButton>
+                    <PreviewWrapper>
+                        <PreviewContainer>
+                            <PreviewImage src={imageSrc} alt="Preview" scale={scale} />
+                        </PreviewContainer>
+                    </PreviewWrapper>
+                    <ButtonGroup>
+                        <DownloadButton onClick={handleUploadNewImage}>Upload New Image</DownloadButton>
+                        <DownloadButton onClick={handleDownloadImage}>Download Processed Image</DownloadButton>
+                    </ButtonGroup>
                 </>
             )}
         </Container>
@@ -98,10 +145,9 @@ const Container = styled.div`
 `;
 
 const UploadBox = styled.div`
-    width: ${({ imageSize, scale }) => Math.min(imageSize.width * scale, 600)}px;
-    height: ${({ imageSize, scale }) => Math.min(imageSize.height * scale, 600)}px;
+    width: 300px;
+    height: 300px;
     border: ${({ hasImage }) => (hasImage ? 'none' : '2px dashed #888')};
-    padding: 20px;
     text-align: center;
     border-radius: 10px;
     cursor: pointer;
@@ -110,13 +156,23 @@ const UploadBox = styled.div`
     flex-direction: column;
     justify-content: center;
     transition: border-color 0.3s;
-    background-size: cover;
+    background-size: contain;
     background-position: center;
+    background-repeat: no-repeat;
     background-image: ${({ imageSrc }) => (imageSrc ? `url(${imageSrc})` : 'none')};
 
     &:hover {
         border-color: ${({ hasImage }) => (hasImage ? 'none' : '#fff')};
     }
+`;
+
+const MinChunkInfo = styled.div`
+    margin-top: 10px;
+    padding: 10px;
+    background-color: ${({ isFailed }) => (isFailed ? '#ff4d4d' : '#444')};
+    border-radius: 5px;
+    font-size: 1rem;
+    font-weight: bold;
 `;
 
 const ScaleSlider = styled.div`
@@ -127,8 +183,64 @@ const ScaleSlider = styled.div`
     color: white;
 
     input {
-        width: 200px;
+        width: 250px;
         margin-top: 10px;
+    }
+`;
+
+const ResolutionText = styled.p`
+    margin-top: 10px;
+    font-size: 1rem;
+    color: #bbb;
+`;
+
+const PreviewWrapper = styled.div`
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 320px;
+    height: 320px;
+    background-color: #444;
+    border-radius: 10px;
+    margin-top: 20px;
+    overflow: hidden;
+`;
+
+const PreviewContainer = styled.div`
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    height: 100%;
+`;
+
+const PreviewImage = styled.img`
+    max-width: 100%;
+    max-height: 100%;
+    transform: scale(${({ scale }) => scale});
+    transition: transform 0.3s ease-in-out;
+`;
+
+const ButtonGroup = styled.div`
+    display: flex;
+    gap: 10px;
+    margin-top: 15px;
+`;
+
+const DownloadButton = styled.button`
+    padding: 14px 20px;
+    background: linear-gradient(135deg, #6a11cb, #2575fc);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: background 0.3s, transform 0.2s;
+    font-weight: bold;
+
+    &:hover {
+        background: linear-gradient(135deg, #2575fc, #6a11cb);
+        transform: scale(1.07);
     }
 `;
 
@@ -139,22 +251,6 @@ const UploadText = styled.p`
 
 const Input = styled.input`
     display: none;
-`;
-
-const DownloadButton = styled.button`
-    margin-top: 10px;
-    padding: 10px 20px;
-    background-color: #a338f6;
-    color: white;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    font-size: 1rem;
-    transition: background-color 0.3s;
-
-    &:hover {
-        background-color: #8a2be2;
-    }
 `;
 
 export default Main;
