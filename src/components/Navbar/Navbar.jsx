@@ -7,7 +7,7 @@ const Navbar = () => {
         <Wrapper>
             <Logo to="/">PIXELZOOM</Logo>
             <Links>
-                <NavLink to="/about">ABOUT</NavLink>
+                <NavLink to="/test">ABOUT</NavLink>
                 <NavLink to="/articles">ARTICLES</NavLink>
             </Links>
         </Wrapper>

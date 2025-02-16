@@ -4,6 +4,7 @@ import Main from './pages/Main/index';
 import Navbar from './components/Navbar/Navbar';
 import Spinner from './components/Spinner/Spinner';
 import Footer from './components/Footer/Footer';
+import Test from './pages/Test/test';
 function App() {
     const [loading, setLoading] = useState(false);
 
@@ -19,6 +20,7 @@ function App() {
             <Navbar />
             <Routes>
                 <Route path="/" element={<Main />} />
+                <Route path="test" element={<Test />} />
             </Routes>
             <Footer />
         </Router>

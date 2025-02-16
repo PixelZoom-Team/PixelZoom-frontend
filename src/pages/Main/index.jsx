@@ -1,104 +1,48 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
 import styled from 'styled-components';
-
-const Navbar = () => {
-    return (
-        <Wrapper>
-            <Logo to="/">PIXELZOOM</Logo>
-            <Links>
-                <NavLink to="/about">ABOUT</NavLink>
-                <NavLink to="/articles">ARTICLES</NavLink>
-            </Links>
-        </Wrapper>
-    );
-};
-
-const Wrapper = styled.nav`
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    width: 100%;
-    padding: 20px 50px;
-    background-color: #1e1e2e;
-    border-bottom: 2px solid #444;
-
-    @media (max-width: 768px) {
-        flex-direction: column;
-        padding: 15px;
-    }
-`;
-
-const Logo = styled(Link)`
-    font-size: 2rem;
-    font-weight: bold;
-    color: white;
-    text-decoration: none;
-    flex-shrink: 0;
-`;
-
-const Links = styled.div`
-    display: flex;
-    justify-content: center;
-    flex-grow: 1;
-    gap: 50px;
-
-    @media (max-width: 768px) {
-        gap: 20px;
-        margin-top: 10px;
-    }
-`;
-
-const NavLink = styled(Link)`
-    color: white;
-    text-decoration: none;
-    font-size: 1.2rem;
-    transition: color 0.3s;
-
-    &:hover {
-        color: rgb(216, 186, 240);
-        transform: scale(1.1);
-        cursor: pointer;
-    }
-
-    @media (max-width: 768px) {
-        font-size: 1rem;
-    }
-`;
 
 const Main = () => {
     const [imageSrc, setImageSrc] = useState(null);
     const [processedImage, setProcessedImage] = useState(null);
+    const [imageSize, setImageSize] = useState({ width: 300, height: 300 });
+    const [scale, setScale] = useState(1);
 
-    const handleProcessImage = () => {
+    const handleDownload = () => {
         if (!imageSrc) return;
-
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
-
         const img = new Image();
         img.src = imageSrc;
         img.onload = () => {
-            canvas.width = 16;
-            canvas.height = 15;
+            canvas.width = imageSize.width * scale;
+            canvas.height = imageSize.height * scale;
             ctx.imageSmoothingEnabled = false;
-            ctx.drawImage(img, 0, 0, 16, 15);
-            setProcessedImage(canvas.toDataURL('image/png'));
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            const link = document.createElement('a');
+            link.href = canvas.toDataURL('image/png');
+            link.download = 'scaled_image.png';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
         };
     };
-    const handleDownload = () => {
-        if (!processedImage) return;
-        const link = document.createElement('a');
-        link.href = processedImage;
-        link.download = 'processed_image.png';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+
+    const handleUploadNewImage = () => {
+        setImageSrc(null);
+        setProcessedImage(null);
+        setImageSize({ width: 300, height: 300 });
+        setScale(1);
     };
 
     return (
         <Container>
-            <UploadBox onClick={() => document.getElementById('fileInput').click()}>
+            <UploadBox
+                onClick={() => document.getElementById('fileInput').click()}
+                imageSrc={imageSrc}
+                imageSize={imageSize}
+                hasImage={!!imageSrc}
+                scale={scale}
+            >
                 <Input
                     type="file"
                     id="fileInput"
@@ -107,23 +51,35 @@ const Main = () => {
                         const file = e.target.files[0];
                         if (file) {
                             const reader = new FileReader();
-                            reader.onload = () => setImageSrc(reader.result);
+                            reader.onload = (event) => {
+                                const img = new Image();
+                                img.src = event.target.result;
+                                img.onload = () => {
+                                    setImageSize({ width: img.width, height: img.height });
+                                    setImageSrc(event.target.result);
+                                };
+                            };
                             reader.readAsDataURL(file);
                         }
                     }}
                 />
-                <UploadText>Click to Upload or Drag and Drop</UploadText>
+                {!imageSrc && <UploadText>Click to Upload or Drag and Drop</UploadText>}
             </UploadBox>
             {imageSrc && (
                 <>
-                    <ImagePreview src={imageSrc} alt="Uploaded" />
-                    <DownloadButton onClick={handleProcessImage}>Process Image</DownloadButton>
-                </>
-            )}
-            {processedImage && (
-                <>
-                    <ImagePreview src={processedImage} alt="Processed" />
-                    <DownloadButton onClick={handleDownload}>Download Processed Image</DownloadButton>
+                    <ScaleSlider>
+                        <label>Scale: {scale}x</label>
+                        <input
+                            type="range"
+                            min="0.1"
+                            max="10"
+                            step="0.1"
+                            value={scale}
+                            onChange={(e) => setScale(Number(e.target.value))}
+                        />
+                    </ScaleSlider>
+                    <DownloadButton onClick={handleUploadNewImage}>Upload New Image</DownloadButton>
+                    <DownloadButton onClick={handleDownload}>Download Image</DownloadButton>
                 </>
             )}
         </Container>
@@ -142,17 +98,37 @@ const Container = styled.div`
 `;
 
 const UploadBox = styled.div`
-    width: 50%;
-    border: 2px dashed #888;
+    width: ${({ imageSize, scale }) => Math.min(imageSize.width * scale, 600)}px;
+    height: ${({ imageSize, scale }) => Math.min(imageSize.height * scale, 600)}px;
+    border: ${({ hasImage }) => (hasImage ? 'none' : '2px dashed #888')};
     padding: 20px;
     text-align: center;
     border-radius: 10px;
     cursor: pointer;
     margin-top: 20px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
     transition: border-color 0.3s;
+    background-size: cover;
+    background-position: center;
+    background-image: ${({ imageSrc }) => (imageSrc ? `url(${imageSrc})` : 'none')};
 
     &:hover {
-        border-color: #fff;
+        border-color: ${({ hasImage }) => (hasImage ? 'none' : '#fff')};
+    }
+`;
+
+const ScaleSlider = styled.div`
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-top: 20px;
+    color: white;
+
+    input {
+        width: 200px;
+        margin-top: 10px;
     }
 `;
 
@@ -163,14 +139,6 @@ const UploadText = styled.p`
 
 const Input = styled.input`
     display: none;
-`;
-
-const ImagePreview = styled.img`
-    margin-top: 20px;
-    max-width: 80%;
-    height: auto;
-    border-radius: 10px;
-    image-rendering: pixelated;
 `;
 
 const DownloadButton = styled.button`
