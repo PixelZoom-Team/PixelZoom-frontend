@@ -23,7 +23,7 @@ const Main = () => {
         formData.append('image', file);
 
         try {
-            const response = await fetch('http://sadang.org:8000/api/analyze-image', {
+            const response = await fetch('https://sadang.org:8000/api/analyze-image', {
                 method: 'POST',
                 body: formData,
             });
