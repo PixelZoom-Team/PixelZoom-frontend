@@ -35,8 +35,8 @@ const Main = () => {
             if (result.status?.type === 'failed') {
                 setIsFailed(true);
                 setMinChunkSize(1);
-            } else if (result.data?.minchunksize) {
-                setMinChunkSize(Number(result.data.minchunksize.width));
+            } else if (result.data?.chunksize) {
+                setMinChunkSize(Number(result.data.chunksize));
                 setIsFailed(false);
             }
         } catch (error) {
@@ -97,7 +97,7 @@ const Main = () => {
 
             {serverResponse && (
                 <MinChunkInfo>
-                    {isFailed ? <p>⚠️ Minchunk 탐지 실패</p> : <p>✅ Minchunk: {minChunkSize}</p>}
+                    {isFailed ? <p>⚠️ Block Size 탐지 실패</p> : <p>✅ BlockSize: {minChunkSize}</p>}
                 </MinChunkInfo>
             )}
 
